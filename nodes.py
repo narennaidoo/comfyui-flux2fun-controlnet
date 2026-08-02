@@ -20,6 +20,7 @@ from typing import List
 import folder_paths
 import comfy.utils
 import comfy.model_management
+import comfy.hooks
 
 # Apply monkey patch on import
 from . import flux_patch
@@ -376,9 +377,11 @@ class ControlNetWrapper:
         if low_vram and control_context is not None:
             self.control_context = control_context.cpu()
         
-        class HooksContainer:
-            hooks = []
-        self.extra_hooks = HooksContainer()
+        # Real HookGroup, not an attribute-only shim: core's get_hooks_from_cond walks the cnet
+        # chain collecting extra_hooks, and with 2+ chained Fun-CN applies HookGroup.combine_all_hooks
+        # calls .clone()/.clone_and_combine() on every entry - the bare shim only survived the
+        # single-apply len==1 shortcut.
+        self.extra_hooks = comfy.hooks.HookGroup()
         
     def pre_run(self, model, percent_to_timestep_function):
         if self.previous_controlnet:
